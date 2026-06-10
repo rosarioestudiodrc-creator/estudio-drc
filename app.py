@@ -15,8 +15,8 @@ def get_headers():
         "Content-Type": "application/json"
     }
 
-# Diseño Base unificado en funciones/variables limpias
-HTML_LOGIN = '''<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Iniciar Sesión - Estudio DRC</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); height: 100vh; display: flex; align-items: center; justify-content: center; }.login-card { border: none; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 420px; background: white; padding: 40px; }</style></head><body><div class="login-card text-center"><h3 class="fw-bold text-dark mb-2">Estudio DRC</h3><p class="text-muted mb-4">Ingresá tu CUIT para acceder al portal</p>{% if error %}<div class="alert alert-danger py-2 fs-7">{{ error }}</div>{% endif %}<form method="POST"><div class="mb-3 text-start"><label class="form-label text-secondary fw-semibold">CUIT del Contribuyente</label><input type="text" name="cuit" class="form-control form-control-lg text-center" placeholder="30-12345678-9" required autocomplete="off"></div><button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm" style="background-color: #2563eb;">Ingresar al Portal</button></form></div></body></html>'''
+# HTML del Login con campo CUIT y CLAVE
+HTML_LOGIN = '''<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Iniciar Sesión - Estudio DRC</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); height: 100vh; display: flex; align-items: center; justify-content: center; }.login-card { border: none; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 420px; background: white; padding: 40px; }</style></head><body><div class="login-card text-center"><h3 class="fw-bold text-dark mb-2">Estudio DRC</h3><p class="text-muted mb-4">Ingresá tus credenciales para acceder</p>{% if error %}<div class="alert alert-danger py-2 fs-7">{{ error }}</div>{% endif %}<form method="POST"><div class="mb-3 text-start"><label class="form-label text-secondary fw-semibold">CUIT del Contribuyente</label><input type="text" name="cuit" class="form-control form-control-lg text-center" placeholder="30-12345678-9" required autocomplete="off"></div><div class="mb-4 text-start"><label class="form-label text-secondary fw-semibold">Clave de Acceso</label><input type="password" name="clave" class="form-control form-control-lg text-center" placeholder="••••••••" required></div><button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm" style="background-color: #2563eb;">Ingresar al Portal</button></form></div></body></html>'''
 
 def obtener_layout_completo(contenido_dinamico, active_page='impuestos'):
     return f'''<!DOCTYPE html>
@@ -37,7 +37,7 @@ def obtener_layout_completo(contenido_dinamico, active_page='impuestos'):
     </style>
 </head>
 <body>
-    <div class="sidebar">
+    <div class="sidebar d-flex flex-column">
         <div class="px-4 mb-4">
             <h4 class="fw-bold mb-0 text-white"><i class="fa-solid fa-calculator me-2"></i>Estudio DRC</h4>
             <small class="text-muted">Portal de Clientes</small>
@@ -45,8 +45,8 @@ def obtener_layout_completo(contenido_dinamico, active_page='impuestos'):
         <hr class="mx-3 opacity-25">
         <a href="{ url_for('impuestos') }" class="{"active" if active_page == 'impuestos' else ''}"><i class="fa-solid fa-file-invoice-dollar me-2"></i>Impuestos</a>
         <a href="{ url_for('laboral') }" class="{"active" if active_page == 'laboral' else ''}"><i class="fa-solid fa-users-gear me-2"></i>Área Laboral</a>
-        <hr class="mx-3 opacity-25">
-        <a href="{ url_for('logout') }" class="text-danger mt-auto"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar Sesión</a>
+        <hr class="mx-3 opacity-25 mt-auto">
+        <a href="{ url_for('logout') }" class="text-warning mb-4"><i class="fa-solid fa-right-from-bracket me-2"></i>Cerrar Sesión</a>
     </div>
     <div class="main-content">
         <div class="container-fluid">
@@ -109,7 +109,7 @@ HTML_TABLA_IMPUESTOS = '''
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="text-center py-4 text-muted">No se registran deudas pendientes ni impuestos para este período.</td>
+                    <td colspan="5" class="text-center py-4 text-muted">No se registran obligaciones pendientes cargadas para este período en Airtable.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -124,17 +124,27 @@ def home():
     error = None
     if request.method == 'POST':
         cuit_ingresado = re.sub(r'\D', '', request.form.get('cuit', ''))
+        clave_ingresada = request.form.get('clave', '').strip()
+        
         url = "https://api.airtable.com/v0/" + BASE_ID + "/Clientes?filterByFormula=SUBSTITUTE(SUBSTITUTE({CUIT},'-',''),' ','')='" + cuit_ingresado + "'"
         try:
             res = requests.get(url, headers=get_headers()).json()
             records = res.get("records", [])
             if records:
-                session['usuario_id'] = records[0]['id']
-                session['razon_social'] = records[0]['fields'].get('Razón Social', 'Cliente')
-                session['cuit'] = records[0]['fields'].get('CUIT', cuit_ingresado)
-                return redirect(url_for('impuestos'))
+                fields = records[0]['fields']
+                
+                # ADAPTACIÓN: Leemos 'password_hash' en lugar de 'Clave'
+                clave_airtable = str(fields.get('password_hash', '')).strip()
+                
+                if clave_airtable and clave_ingresada == clave_airtable:
+                    session['usuario_id'] = records[0]['id']
+                    session['razon_social'] = fields.get('Razón Social', 'Cliente')
+                    session['cuit'] = fields.get('CUIT', cuit_ingresado)
+                    return redirect(url_for('impuestos'))
+                else:
+                    error = "La clave ingresada es incorrecta."
             else:
-                error = "El CUIT ingresado no corresponds a un cliente activo."
+                error = "El CUIT ingresado no corresponde a un cliente activo."
         except Exception as e:
             error = "Error de comunicación con la base de datos."
     return render_template_string(HTML_LOGIN, error=error)
@@ -147,12 +157,14 @@ def impuestos():
     saldo_total = 0.0
     lista_filtrada = []
     TABLA_REAL = "Impuestos y Vencimientos"
+    
     url = "https://api.airtable.com/v0/" + BASE_ID + "/" + TABLA_REAL + "?filterByFormula={Cliente}='" + session['usuario_id'] + "'"
     
     try:
         res = requests.get(url, headers=get_headers()).json()
         for rec in res.get("records", []):
             f = rec.get("fields", {})
+            
             monto_crudo = f.get("Importe VEP", 0.0)
             if isinstance(monto_crudo, list):
                 monto_crudo = monto_crudo[0] if len(monto_crudo) > 0 else 0.0
@@ -162,18 +174,24 @@ def impuestos():
                 monto = 0.0
                 
             saldo_total += monto
+            
+            link_v = f.get("Link VEP", "#")
+            if isinstance(link_v, list): link_v = link_v[0] if len(link_v) > 0 else "#"
+            
+            link_d = f.get("Link DDJJ", "#")
+            if isinstance(link_d, list): link_d = link_d[0] if len(link_d) > 0 else "#"
+
             lista_filtrada.append({
                 "impuesto": f.get("Impuesto", "Impuesto"),
                 "periodo": f.get("Período", "N/A"),
                 "importe": monto,
                 "vencimiento": f.get("Vencimiento", "N/A"),
-                "link_vep": f.get("Link VEP", "#"),
-                "link_ddjj": f.get("Link DDJJ", "#")
+                "link_vep": link_v if link_v else "#",
+                "link_ddjj": link_d if link_d else "#"
             })
     except Exception as e:
-        print(f"Error crítico: {e}")
+        print(f"Error en consulta de impuestos: {e}")
 
-    # Renderizamos la tabla intermedia y la inyectamos directamente en el layout estático
     cuerpo_renderizado = render_template_string(HTML_TABLA_IMPUESTOS, saldo_total=saldo_total, lista_filtrada=lista_filtrada)
     return obtener_layout_completo(cuerpo_renderizado, active_page='impuestos')
 
@@ -181,7 +199,7 @@ def impuestos():
 def laboral():
     if 'usuario_id' not in session:
         return redirect(url_for('home'))
-    contenido = "<div class='card card-custom bg-white p-4'><h5>Área Laboral</h5><p class='text-muted mt-2'>Espacio para recibos de sueldo.</p></div>"
+    contenido = "<div class='card card-custom bg-white p-4'><h5>Área Laboral</h5><p class='text-muted mt-2'>Espacio reservado para liquidaciones y recibos de sueldo.</p></div>"
     return obtener_layout_completo(contenido, active_page='laboral')
 
 @app.route('/logout')
