@@ -15,7 +15,6 @@ def get_headers():
         "Content-Type": "application/json"
     }
 
-# HTML del Login con campo CUIT y CLAVE
 HTML_LOGIN = '''<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Iniciar Sesión - Estudio DRC</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); height: 100vh; display: flex; align-items: center; justify-content: center; }.login-card { border: none; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 420px; background: white; padding: 40px; }</style></head><body><div class="login-card text-center"><h3 class="fw-bold text-dark mb-2">Estudio DRC</h3><p class="text-muted mb-4">Ingresá tus credenciales para acceder</p>{% if error %}<div class="alert alert-danger py-2 fs-7">{{ error }}</div>{% endif %}<form method="POST"><div class="mb-3 text-start"><label class="form-label text-secondary fw-semibold">CUIT del Contribuyente</label><input type="text" name="cuit" class="form-control form-control-lg text-center" placeholder="30-12345678-9" required autocomplete="off"></div><div class="mb-4 text-start"><label class="form-label text-secondary fw-semibold">Clave de Acceso</label><input type="password" name="clave" class="form-control form-control-lg text-center" placeholder="••••••••" required></div><button type="submit" class="btn btn-primary btn-lg w-100 fw-bold shadow-sm" style="background-color: #2563eb;">Ingresar al Portal</button></form></div></body></html>'''
 
 def obtener_layout_completo(contenido_dinamico, active_page='impuestos'):
@@ -109,7 +108,7 @@ HTML_TABLA_IMPUESTOS = '''
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="text-center py-4 text-muted">No se registran obligaciones pendientes cargadas para este período en Airtable.</td>
+                    <td colspan="5" class="text-center py-4 text-muted">No se registran obligaciones de pago pendientes en este período.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -132,8 +131,6 @@ def home():
             records = res.get("records", [])
             if records:
                 fields = records[0]['fields']
-                
-                # ADAPTACIÓN: Leemos 'password_hash' en lugar de 'Clave'
                 clave_airtable = str(fields.get('password_hash', '')).strip()
                 
                 if clave_airtable and clave_ingresada == clave_airtable:
@@ -186,8 +183,8 @@ def impuestos():
                 "periodo": f.get("Período", "N/A"),
                 "importe": monto,
                 "vencimiento": f.get("Vencimiento", "N/A"),
-                "link_vep": link_v if link_v else "#",
-                "link_ddjj": link_d if link_d else "#"
+                "link_vep": link_v if link_v and link_v != "" else "#",
+                "link_ddjj": link_d if link_d and link_d != "" else "#"
             })
     except Exception as e:
         print(f"Error en consulta de impuestos: {e}")
