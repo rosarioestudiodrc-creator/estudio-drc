@@ -98,11 +98,14 @@ HTML_TABLA_IMPUESTOS = '''
                             {% else %}
                             <button class="btn btn-sm btn-outline-secondary" disabled><i class="fa-solid fa-ban me-1"></i> No DDJJ</button>
                             {% endif %}
+                            
                             {% if imp['link_vep'] and imp['link_vep'] != "#" %}
                             <a href="{{ imp['link_vep'] }}" target="_blank" class="btn btn-sm btn-primary"><i class="fa-solid fa-download me-1"></i> Descargar VEP</a>
                             {% else %}
                             <button class="btn btn-sm btn-primary" disabled><i class="fa-solid fa-ban me-1"></i> No VEP</button>
                             {% endif %}
+
+                            <a href="https://estudiodrc.notion.site" target="_blank" class="btn btn-sm btn-success"><i class="fa-solid fa-receipt me-1"></i> Informar Pago</a>
                         </div>
                     </td>
                 </tr>
@@ -155,14 +158,17 @@ def impuestos():
     lista_filtrada = []
     TABLA_REAL = "Impuestos y Vencimientos"
     
-    url = "https://api.airtable.com/v0/" + BASE_ID + "/" + TABLA_REAL + "?filterByFormula={Cliente}='" + session['usuario_id'] + "'"
+    # 🎯 CORRECCIÓN CLAVE: Buscamos usando el campo relacional correcto 'Cliente (CUIT)' y filtramos solo los Pendientes
+    formula_airtable = f"AND({{Cliente (CUIT)}}='{session['usuario_id']}', {{Estado Pago}}='Pendiente')"
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLA_REAL}?filterByFormula={formula_airtable}"
     
     try:
         res = requests.get(url, headers=get_headers()).json()
         for rec in res.get("records", []):
             f = rec.get("fields", {})
             
-            monto_crudo = f.get("Importe VEP", 0.0)
+            # 🎯 CORRECCIÓN CLAVE: Usamos el nombre exacto de tu columna 'Monto a Pagar'
+            monto_crudo = f.get("Monto a Pagar", 0.0)
             if isinstance(monto_crudo, list):
                 monto_crudo = monto_crudo[0] if len(monto_crudo) > 0 else 0.0
             try:
